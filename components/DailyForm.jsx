@@ -1,9 +1,12 @@
 "use client";
 
+import { useAuth } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 import { getPreview, getToday, submitChecklist } from "@/lib/api";
 
 export default function DailyForm() {
+  const { getToken, isSignedIn } = useAuth();
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
@@ -48,20 +51,31 @@ export default function DailyForm() {
 
   const onSubmit = async (e) => {
     e.preventDefault();
+    if (saving) return;
+
+    // Require auth token
+    const token = await getToken();
+    if (!token) {
+      setMsg("Please sign in to save.");
+      return;
+    }
+
     setSaving(true);
     setMsg("");
-    // coerce number fields
+
+    // Coerce numeric fields; empty strings -> null
     const payload = {
       ...form,
       open_csp_count: form.open_csp_count === "" ? null : Number(form.open_csp_count),
       positions_rolled_count: form.positions_rolled_count === "" ? null : Number(form.positions_rolled_count),
       cash_deployed_pct: form.cash_deployed_pct === "" ? null : Number(form.cash_deployed_pct)
     };
+
     try {
-      const res = await submitChecklist(payload);
+      const res = await submitChecklist(payload, token); // ✅ one call, with token
       setMsg(`Saved for ${res.trade_date} (id ${res.id}).`);
-    } catch (e) {
-      console.error(e);
+    } catch (err) {
+      console.error(err);
       setMsg("Save failed.");
     } finally {
       setSaving(false);
@@ -74,6 +88,12 @@ export default function DailyForm() {
     <form className="card" onSubmit={onSubmit}>
       <h2>Daily Options Checklist</h2>
       <p className="small">API: {process.env.NEXT_PUBLIC_API_BASE}</p>
+
+      {!isSignedIn && (
+        <p className="small" style={{marginTop:8}}>
+          You’re not signed in. <a href="/sign-in">Sign in</a> to save entries.
+        </p>
+      )}
 
       <div className="grid">
         <div>
@@ -98,10 +118,14 @@ export default function DailyForm() {
       </div>
 
       <div className="row" style={{marginTop:12}}>
-        <label><input type="checkbox" name="high_impact_event" checked={form.high_impact_event} onChange={onChange} /> High-impact event this week</label>
+        <label>
+          <input type="checkbox" name="high_impact_event" checked={form.high_impact_event} onChange={onChange} /> High-impact event this week
+        </label>
       </div>
       <div className="row">
-        <label><input type="checkbox" name="qqq_rsi_over70" checked={form.qqq_rsi_over70} onChange={onChange} /> QQQ weekly RSI &gt; 70</label>
+        <label>
+          <input type="checkbox" name="qqq_rsi_over70" checked={form.qqq_rsi_over70} onChange={onChange} /> QQQ weekly RSI &gt; 70
+        </label>
       </div>
 
       <div style={{marginTop:12}}>
