@@ -1,4 +1,3 @@
-import "./globals.css";
 import DailyForm from "@/components/DailyForm";
 import { getPreview } from "@/lib/api";
 
